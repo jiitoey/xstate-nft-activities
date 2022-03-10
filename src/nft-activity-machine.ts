@@ -44,7 +44,7 @@ const mockFetchActivityResult = async (selectedActivities: string[]) => {
   }>;
 };
 
-export const itemsMachine = createMachine(
+export const nftActivityMachine = createMachine(
   {
     tsTypes: {} as import("./nft-activity-machine.typegen").Typegen0,
     id: "ACTIVITY",
@@ -135,7 +135,7 @@ export const itemsMachine = createMachine(
       updateSelectedActivities: assign((context, event) => {
         const index = context.selectedActivities.indexOf(event.activityType);
         if (index > -1) {
-          context.selectedActivities.splice(index, 1); // 2nd parameter means remove one item only
+          context.selectedActivities.splice(index, 1);
         } else {
           context.selectedActivities.push(event.activityType);
         }

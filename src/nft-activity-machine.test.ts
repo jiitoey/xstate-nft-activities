@@ -1,31 +1,29 @@
 import { interpret } from "xstate";
-import { itemsMachine } from "./nft-activity-machine";
+import { nftActivityMachine } from "./nft-activity-machine";
 
-describe('"fetchItems" on "loading" state', () => {
-  test('"onDone", do "updateItems" and  go to "display"', (done) => {
+describe('"fetchActivity" on "loading" state', () => {
+  test('"onDone", do "updateActivity" and  go to "display"', (done) => {
     const expectedItems = {
-      totalItems: 5,
-      items: [
+      activity: [
         {
-          artistName: "John Doe",
-          id: "01234",
-          price: 1.0,
-          currency: "ETH",
-          end: new Date().toISOString(),
+          activityType: "list",
+          price: `0.15 ETH`,
+          from: `John Doe`,
+          to: `Joe Dohn`,
+          date: new Date().toString(),
         },
       ],
     };
-    const mockFetchMachine = itemsMachine.withConfig({
+    const mockFetchMachine = nftActivityMachine.withConfig({
       services: {
-        fetchItems: async (_, event) => expectedItems,
+        fetchActivity: async (_, event) => expectedItems,
       },
     });
     interpret(mockFetchMachine)
       .onTransition((state) => {
         if (state.matches("display")) {
           try {
-            expect(state.context.totalItems).toBe(expectedItems.totalItems);
-            expect(state.context.items).toBe(expectedItems.items);
+            expect(state.context.activity).toBe(expectedItems.activity);
             done();
           } catch (e) {
             done(e);
@@ -36,9 +34,9 @@ describe('"fetchItems" on "loading" state', () => {
   });
 
   test('"onError", go to "failed"', (done) => {
-    const mockFetchMachine = itemsMachine.withConfig({
+    const mockFetchMachine = nftActivityMachine.withConfig({
       services: {
-        fetchItems: async (_, event) => {
+        fetchActivity: async (_, event) => {
           throw "This is a forced error!";
         },
       },
@@ -47,7 +45,7 @@ describe('"fetchItems" on "loading" state', () => {
       .onTransition((state) => {
         if (state.matches("failed")) {
           try {
-            expect(state.context.items.length).toBe(0);
+            expect(state.context.activity.length).toBe(0);
             done();
           } catch (e) {
             done(e);
@@ -58,64 +56,68 @@ describe('"fetchItems" on "loading" state', () => {
   });
 });
 
-it('should reach "loading" given "display" when the "ITEMS.SORT_CHANGED" event occurs', () => {
-  const expectedValue = "loading";
+describe('"ACTIVITY.TOGGLE" event will change state from "display" to "loading"', () => {
+  it("activity in selectedActivities, it will be removed", () => {
+    const expectedState = "loading";
+    nftActivityMachine.context.selectedActivities = [
+      "list",
+      "minted",
+      "sale",
+      "transfer",
+      "offers",
+    ];
+    const actualState = nftActivityMachine.transition("display", {
+      type: "ACTIVITY.TOGGLE",
+      activityType: "offers",
+    });
 
-  const actualState = itemsMachine.transition("display", {
-    type: "ITEMS.SORT_CHANGED",
-    sortBy: "id",
+    expect(actualState.matches(expectedState)).toBeTruthy();
+    expect(actualState.context.selectedActivities.indexOf("offers")).toBe(-1);
   });
 
-  expect(actualState.matches(expectedValue)).toBeTruthy();
-  expect(actualState.context.sortBy).toBe("id");
+  it("activity not in selectedActivities, it will be added", () => {
+    const expectedState = "loading";
+    nftActivityMachine.context.selectedActivities = ["list"];
+    const actualState = nftActivityMachine.transition("display", {
+      type: "ACTIVITY.TOGGLE",
+      activityType: "offers",
+    });
+
+    expect(actualState.matches(expectedState)).toBeTruthy();
+    expect(actualState.context.selectedActivities.indexOf("offers")).not.toBe(
+      -1
+    );
+  });
 });
 
-it('should reach "loading" given "display" when the "PAGE.SIZE_CHANGED" event occurs', () => {
-  const expectedValue = "loading";
+it('should reach "loading" given "display" when the "ACTIVITY.SORT_CHANGED" event occurs', () => {
+  const expectedState = "loading";
 
-  const actualState = itemsMachine.transition("display", {
-    type: "PAGE.SIZE_CHANGED",
-    pageSize: 15,
+  const actualState = nftActivityMachine.transition("display", {
+    type: "ACTIVITY.SORT_CHANGED",
+    sortBy: "latestFirst",
   });
 
-  expect(actualState.matches(expectedValue)).toBeTruthy();
-  expect(actualState.context.page).toBe(1);
-  expect(actualState.context.pageSize).toBe(15);
+  expect(actualState.matches(expectedState)).toBeTruthy();
+  expect(actualState.context.sortBy).toBe("latestFirst");
 });
 
-it('should reach "loading" given "display" on "PAGE.PAGE_CHANGED" event, and not in last page', () => {
-  const expectedValue = "loading";
-  itemsMachine.context.totalItems = 100;
-  itemsMachine.context.pageSize = 10;
-  const actualState = itemsMachine.transition("display", {
-    type: "PAGE.PAGE_CHANGED",
-    page: 2,
+it('should reach "loading" given "display" when the "ACTIVITY.RELOAD" event occurs', () => {
+  const expectedState = "loading";
+
+  const actualState = nftActivityMachine.transition("display", {
+    type: "ACTIVITY.RELOAD",
   });
 
-  expect(actualState.matches(expectedValue)).toBeTruthy();
-  expect(actualState.context.page).toBe(2);
+  expect(actualState.matches(expectedState)).toBeTruthy();
 });
 
-it('should stay at "display" given "display" on "PAGE.PAGE_CHANGED" event, on last page', () => {
-  const expectedValue = "display";
-  itemsMachine.context.totalItems = 100;
-  itemsMachine.context.pageSize = 10;
-  itemsMachine.context.page = 10;
-  const actualState = itemsMachine.transition("display", {
-    type: "PAGE.PAGE_CHANGED",
-    page: 11,
+it('should reach "loading" given "failed" when the "ACTIVITY.RELOAD" event occurs', () => {
+  const expectedState = "loading";
+
+  const actualState = nftActivityMachine.transition("failed", {
+    type: "ACTIVITY.RELOAD",
   });
 
-  expect(actualState.matches(expectedValue)).toBeTruthy();
-  expect(actualState.context.page).toBe(10);
-});
-
-it('should reach "loading" given "failed" when the "ITEMS.RELOAD" event occurs', () => {
-  const expectedValue = "loading";
-
-  const actualState = itemsMachine.transition("failed", {
-    type: "ITEMS.RELOAD",
-  });
-
-  expect(actualState.matches(expectedValue)).toBeTruthy();
+  expect(actualState.matches(expectedState)).toBeTruthy();
 });
